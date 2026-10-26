@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Domain/Domain.csproj" Id="81301045-c278-4df0-917a-b12e65d9b3c3" />
+  <Project Path="WebApplication2/WebApplication2.csproj" />
+</Solution>
