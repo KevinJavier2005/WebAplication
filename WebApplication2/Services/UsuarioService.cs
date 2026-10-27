@@ -1,112 +1,109 @@
-﻿using Domain.DTOs;
-using Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+﻿using Dapper;
+using Domain.DTOs;
+using Microsoft.Data.SqlClient;
+using System.Data;
 using WebApplication2.Context;
 
 namespace WebApplication2.Services
 {
     public class UsuarioService : IUsuarioService
     {
-        private readonly ApplicationDBContext _context;
+        private readonly DapperContext _context;
 
-        public UsuarioService(ApplicationDBContext context)
+        public UsuarioService(DapperContext context)
         {
             _context = context;
         }
 
         public async Task<IEnumerable<UsuarioResponseDto>> GetAllAsync()
         {
-            return await _context.Usuarios
-                .AsNoTracking()
-                .Select(u => new UsuarioResponseDto
-                {
-                    PKUsuario = u.PKUsuario,
-                    Nombre = u.Nombre,
-                    Username = u.Username,
-                    Estatus = u.Estatus,
-                    FKRol = u.FKRol,
-                    RolNombre = u.Roles != null ? u.Roles.Nombre : null
-                })
-                .ToListAsync();
+            using var connection = _context.CreateConnection();
+
+            return await connection.QueryAsync<UsuarioResponseDto>(
+                "sp_Usuarios_Listar",
+                commandType: CommandType.StoredProcedure);
         }
 
-        public async Task<UsuarioResponseDto?> GetByIdAsync(int id)
+        public async Task<UsuarioDetalleDto?> GetByIdAsync(int id)
         {
-            var usuario = await _context.Usuarios
-                .AsNoTracking()
-                .Include(u => u.Roles)
-                .FirstOrDefaultAsync(u => u.PKUsuario == id);
+            using var connection = _context.CreateConnection();
 
-            return usuario == null ? null : ToDto(usuario);
+            return await connection.QueryFirstOrDefaultAsync<UsuarioDetalleDto>(
+                "sp_Usuarios_ObtenerPorId",
+                new { PKUsuario = id },
+                commandType: CommandType.StoredProcedure);
         }
 
         public async Task<UsuarioResponseDto> CreateAsync(UsuarioCreateDto dto)
         {
-            await ValidarRolAsync(dto.FKRol);
+            if (string.IsNullOrWhiteSpace(dto.Password))
+                throw new InvalidOperationException("La contraseña es obligatoria.");
 
-            var usuario = new Usuarios
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+            try
             {
-                Nombre = dto.Nombre,
-                Username = dto.Username,
-                Password = dto.Password,
-                Estatus = dto.Estatus,
-                FKRol = dto.FKRol
-            };
+                using var connection = _context.CreateConnection();
 
-            _context.Usuarios.Add(usuario);
-            await _context.SaveChangesAsync();
-
-            await _context.Entry(usuario).Reference(u => u.Roles).LoadAsync();
-
-            return ToDto(usuario);
+                return await connection.QuerySingleAsync<UsuarioResponseDto>(
+                    "sp_Usuarios_Crear",
+                    new
+                    {
+                        dto.Nombre,
+                        dto.Username,
+                        Password = passwordHash,
+                        dto.Estatus,
+                        dto.FKRol
+                    },
+                    commandType: CommandType.StoredProcedure);
+            }
+            catch (SqlException ex) when (ex.Number == 50001)
+            {
+                throw new InvalidOperationException(ex.Message);
+            }
         }
 
         public async Task<bool> UpdateAsync(int id, UsuarioUpdateDto dto)
         {
-            var usuario = await _context.Usuarios.FindAsync(id);
-            if (usuario == null)
-                return false;
+            string? passwordHash = string.IsNullOrWhiteSpace(dto.Password)
+                ? null
+                : BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
-            await ValidarRolAsync(dto.FKRol);
+            try
+            {
+                using var connection = _context.CreateConnection();
 
-            usuario.Nombre = dto.Nombre;
-            usuario.Username = dto.Username;
-            usuario.Estatus = dto.Estatus;
-            usuario.FKRol = dto.FKRol;
+                var filas = await connection.ExecuteAsync(
+                    "sp_Usuarios_Actualizar",
+                    new
+                    {
+                        PKUsuario = id,
+                        dto.Nombre,
+                        dto.Username,
+                        Password = passwordHash,
+                        dto.Estatus,
+                        dto.FKRol
+                    },
+                    commandType: CommandType.StoredProcedure);
 
-            if (!string.IsNullOrWhiteSpace(dto.Password))
-                usuario.Password = dto.Password;
-
-            await _context.SaveChangesAsync();
-            return true;
+                return filas > 0;
+            }
+            catch (SqlException ex) when (ex.Number == 50001)
+            {
+                throw new InvalidOperationException(ex.Message);
+            }
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var usuario = await _context.Usuarios.FindAsync(id);
-            if (usuario == null)
-                return false;
+            using var connection = _context.CreateConnection();
 
-            _context.Usuarios.Remove(usuario);
-            await _context.SaveChangesAsync();
-            return true;
+            var filas = await connection.ExecuteAsync(
+                "sp_Usuarios_Eliminar",
+                new { PKUsuario = id },
+                commandType: CommandType.StoredProcedure);
+
+            return filas > 0;
         }
-
-        private async Task ValidarRolAsync(int fkRol)
-        {
-            var existe = await _context.Roles.AnyAsync(r => r.PKRol == fkRol);
-            if (!existe)
-                throw new InvalidOperationException($"El rol con id {fkRol} no existe. Crea el rol primero.");
-        }
-
-        private static UsuarioResponseDto ToDto(Usuarios u) => new()
-        {
-            PKUsuario = u.PKUsuario,
-            Nombre = u.Nombre,
-            Username = u.Username,
-            Estatus = u.Estatus,
-            FKRol = u.FKRol,
-            RolNombre = u.Roles?.Nombre
-        };
     }
 }

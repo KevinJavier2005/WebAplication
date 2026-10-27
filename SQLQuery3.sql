@@ -1,0 +1,1 @@
+﻿   SELECT PKUsuario, Username, Password FROM Usuarios;

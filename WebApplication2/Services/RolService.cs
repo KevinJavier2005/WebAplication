@@ -1,89 +1,78 @@
-﻿using Domain.DTOs;
-using Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+﻿using Dapper;
+using Domain.DTOs;
+using Microsoft.Data.SqlClient;
+using System.Data;
 using WebApplication2.Context;
 
 namespace WebApplication2.Services
 {
     public class RolService : IRolService
     {
-        private readonly ApplicationDBContext _context;
+        private readonly DapperContext _context;
 
-        public RolService(ApplicationDBContext context)
+        public RolService(DapperContext context)
         {
             _context = context;
         }
 
         public async Task<IEnumerable<RolResponseDto>> GetAllAsync()
         {
-            return await _context.Roles
-                .AsNoTracking()
-                .Select(r => new RolResponseDto
-                {
-                    PKRol = r.PKRol,
-                    Nombre = r.Nombre,
-                    Estatus = r.Estatus
-                })
-                .ToListAsync();
+            using var connection = _context.CreateConnection();
+
+            return await connection.QueryAsync<RolResponseDto>(
+                "sp_Roles_Listar",
+                commandType: CommandType.StoredProcedure);
         }
 
         public async Task<RolResponseDto?> GetByIdAsync(int id)
         {
-            var rol = await _context.Roles
-                .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.PKRol == id);
+            using var connection = _context.CreateConnection();
 
-            return rol == null ? null : ToDto(rol);
+            return await connection.QueryFirstOrDefaultAsync<RolResponseDto>(
+                "sp_Roles_ObtenerPorId",
+                new { PKRol = id },
+                commandType: CommandType.StoredProcedure);
         }
 
         public async Task<RolResponseDto> CreateAsync(RolCreateDto dto)
         {
-            var rol = new Rol
-            {
-                Nombre = dto.Nombre,
-                Estatus = dto.Estatus
-            };
+            using var connection = _context.CreateConnection();
 
-            _context.Roles.Add(rol);
-            await _context.SaveChangesAsync();
-
-            return ToDto(rol);
+            return await connection.QuerySingleAsync<RolResponseDto>(
+                "sp_Roles_Crear",
+                new { dto.Nombre, dto.Estatus },
+                commandType: CommandType.StoredProcedure);
         }
 
         public async Task<bool> UpdateAsync(int id, RolUpdateDto dto)
         {
-            var rol = await _context.Roles.FindAsync(id);
-            if (rol == null)
-                return false;
+            using var connection = _context.CreateConnection();
 
-            rol.Nombre = dto.Nombre;
-            rol.Estatus = dto.Estatus;
+            var filas = await connection.ExecuteAsync(
+                "sp_Roles_Actualizar",
+                new { PKRol = id, dto.Nombre, dto.Estatus },
+                commandType: CommandType.StoredProcedure);
 
-            await _context.SaveChangesAsync();
-            return true;
+            return filas > 0;
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var rol = await _context.Roles.FindAsync(id);
-            if (rol == null)
-                return false;
+            try
+            {
+                using var connection = _context.CreateConnection();
 
-            _context.Roles.Remove(rol);
-            await _context.SaveChangesAsync();
-            return true;
+                var filas = await connection.ExecuteAsync(
+                    "sp_Roles_Eliminar",
+                    new { PKRol = id },
+                    commandType: CommandType.StoredProcedure);
+
+                return filas > 0;
+            }
+            catch (SqlException ex) when (ex.Number == 50002)
+            {
+                throw new InvalidOperationException(ex.Message);
+            }
         }
-
-        public async Task<bool> TieneUsuariosAsync(int id)
-        {
-            return await _context.Usuarios.AnyAsync(u => u.FKRol == id);
-        }
-
-        private static RolResponseDto ToDto(Rol r) => new()
-        {
-            PKRol = r.PKRol,
-            Nombre = r.Nombre,
-            Estatus = r.Estatus
-        };
     }
 }

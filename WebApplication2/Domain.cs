@@ -2,5 +2,11 @@
 {
     public class Domain
     {
+        public class DTOs
+        {
+            public class UsuarioDetalleDto
+            {
+            }
+        }
     }
 }

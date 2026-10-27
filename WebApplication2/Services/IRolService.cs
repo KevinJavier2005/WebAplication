@@ -9,6 +9,5 @@ namespace WebApplication2.Services
         Task<RolResponseDto> CreateAsync(RolCreateDto dto);
         Task<bool> UpdateAsync(int id, RolUpdateDto dto);
         Task<bool> DeleteAsync(int id);
-        Task<bool> TieneUsuariosAsync(int id);
     }
 }

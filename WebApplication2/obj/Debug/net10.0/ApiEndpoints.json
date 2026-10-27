@@ -170,7 +170,7 @@
     ],
     "ReturnTypes": [
       {
-        "Type": "Domain.DTOs.UsuarioResponseDto",
+        "Type": "Domain.DTOs.UsuarioDetalleDto",
         "MediaTypes": [
           "text/plain",
           "application/json",

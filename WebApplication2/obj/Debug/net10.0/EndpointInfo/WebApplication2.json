@@ -296,17 +296,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/UsuarioResponseDto"
+                  "$ref": "#/components/schemas/UsuarioDetalleDto"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UsuarioResponseDto"
+                  "$ref": "#/components/schemas/UsuarioDetalleDto"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UsuarioResponseDto"
+                  "$ref": "#/components/schemas/UsuarioDetalleDto"
                 }
               }
             }
@@ -442,6 +442,39 @@
           "fkRol": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UsuarioDetalleDto": {
+        "type": "object",
+        "properties": {
+          "pkUsuario": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "estatus": {
+            "type": "boolean"
+          },
+          "fkRol": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rolNombre": {
+            "type": "string",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

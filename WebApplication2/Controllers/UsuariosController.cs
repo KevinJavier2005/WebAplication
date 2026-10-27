@@ -9,27 +9,43 @@ namespace WebApplication2.Controllers
     public class UsuariosController : ControllerBase
     {
         private readonly IUsuarioService _service;
+        private readonly ILogger<UsuariosController> _logger;
 
-        public UsuariosController(IUsuarioService service)
+        public UsuariosController(IUsuarioService service, ILogger<UsuariosController> logger)
         {
             _service = service;
+            _logger = logger;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UsuarioResponseDto>>> GetUsuarios()
         {
-            return Ok(await _service.GetAllAsync());
+            try
+            {
+                return Ok(await _service.GetAllAsync());
+            }
+            catch (Exception ex)
+            {
+                return ErrorInterno(ex, "listar los usuarios");
+            }
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<UsuarioResponseDto>> GetUsuario(int id)
+        public async Task<ActionResult<UsuarioDetalleDto>> GetUsuario(int id)
         {
-            var usuario = await _service.GetByIdAsync(id);
+            try
+            {
+                var usuario = await _service.GetByIdAsync(id);
 
-            if (usuario == null)
-                return NotFound();
+                if (usuario == null)
+                    return NotFound(new { mensaje = $"No existe el usuario con id {id}." });
 
-            return Ok(usuario);
+                return Ok(usuario);
+            }
+            catch (Exception ex)
+            {
+                return ErrorInterno(ex, "obtener el usuario");
+            }
         }
 
         [HttpPost]
@@ -38,11 +54,16 @@ namespace WebApplication2.Controllers
             try
             {
                 var creado = await _service.CreateAsync(dto);
+
                 return CreatedAtAction(nameof(GetUsuario), new { id = creado.PKUsuario }, creado);
             }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { mensaje = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return ErrorInterno(ex, "crear el usuario");
             }
         }
 
@@ -54,7 +75,7 @@ namespace WebApplication2.Controllers
                 var actualizado = await _service.UpdateAsync(id, dto);
 
                 if (!actualizado)
-                    return NotFound();
+                    return NotFound(new { mensaje = $"No existe el usuario con id {id}." });
 
                 return NoContent();
             }
@@ -62,17 +83,36 @@ namespace WebApplication2.Controllers
             {
                 return BadRequest(new { mensaje = ex.Message });
             }
+            catch (Exception ex)
+            {
+                return ErrorInterno(ex, "actualizar el usuario");
+            }
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUsuario(int id)
         {
-            var eliminado = await _service.DeleteAsync(id);
+            try
+            {
+                var eliminado = await _service.DeleteAsync(id);
 
-            if (!eliminado)
-                return NotFound();
+                if (!eliminado)
+                    return NotFound(new { mensaje = $"No existe el usuario con id {id}." });
 
-            return NoContent();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return ErrorInterno(ex, "eliminar el usuario");
+            }
+        }
+
+        private ObjectResult ErrorInterno(Exception ex, string accion)
+        {
+            _logger.LogError(ex, "Error al {Accion}", accion);
+
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { mensaje = $"Ocurrió un error al {accion}. Intenta de nuevo más tarde." });
         }
     }
 }
